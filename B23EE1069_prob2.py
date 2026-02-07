@@ -5,48 +5,88 @@ from collections import defaultdict
 
 class SimpleTokenizer:
     def __init__(self):
-        self.word_to_id = defaultdict(int)
-        self.id_to_word = defaultdict(str)
-        self.freq = defaultdict(int)
-        self.vocab_size = 0
-        self.vocab = list()
+        self.corpus = []
+        self.vocab = []
 
     def init_vocab(self, strings):
         for sentence in strings.split('.'):
-            words = sentence.split()
+            for word in sentence.split():
+                self.corpus.append(list(word) + ['</s>'])
 
-            for word in words:
-                chars = list(word) + ['</s>']
-                for i in range(len(chars) - 1):
-                    pair = chars[i] + chars[i + 1]
-                    self.freq[pair] += 1
+    def get_pair_freq(self):
+        freq = defaultdict(int)
 
-    def train(self, strings, k):
+        for word in self.corpus:
+            for i in range(len(word) - 1):
+                freq[(word[i], word[i + 1])] += 1
+
+        return freq
+    
+    def merge_pair(self, t_l, t_r):
+        t_new = t_l + t_r
+
+        for i, word in enumerate(self.corpus):
+            j = 0
+            new_word = []
+
+            while j < len(word):
+                if j < len(word) - 1 and word[j] == t_l and word[j + 1] == t_r:
+                    new_word.append(t_new)
+                    j += 2
+                else:
+                    new_word.append(word[j])
+                    j += 1
+
+            self.corpus[i] = new_word
+
+    def train(self, k):
         for _ in range(k):
-            if not self.freq:
-                break
+            freq = self.get_pair_freq()
+            if not freq: break
 
-            most_frequent = max(self.freq, key=lambda x: self.freq[x])
-            self.vocab.append(most_frequent)
+            best = max(freq, key=freq.get)
+            self.vocab.append(best)
 
-            t_new = ''.join(most_frequent)
-            new_freq = defaultdict(int)
+            self.merge_pair(*best)
 
-            for pair in self.freq:
-                cnt = self.freq[pair]
-                if pair == most_frequent:
-                    continue
-                new_pair = list(pair)
+    def tokenize(self, text):
+        tokens = []
+
+        for word in text.split():
+            symbols = list(word) + ['</s>']
+
+            for t_l, t_r in self.vocab:
+                j = 0
+                new_sym = []
+
+                while j < len(symbols):
+                    if j < len(symbols) - 1 and symbols[j] == t_l and symbols[j + 1] == t_r:
+                        new_sym.append(t_l + t_r)
+                        j += 2
+                    else:
+                        new_sym.append(symbols[j])
+                        j += 1
                 
-                t_l = new_pair[0]
-                t_r = new_pair[1]
+                symbols = new_sym
 
-                if t_l == most_frequent[0] and t_r == most_frequent[1]:
-                    new_pair[0] = t_new
-                    new_pair.pop(1)
+            tokens.extend(symbols)
 
-                new_freq[tuple(new_pair)] += cnt
+        return tokens
 
-            self.freq = new_freq
 
-    def tokenize(self):
+def example():
+    tokenizer = SimpleTokenizer()
+
+    vocab = "I want a banana. I like it very much. Bananas are eaten by monkeys."
+    tokenizer.init_vocab(vocab)
+    tokenizer.train(50)
+
+    print("Vocab\n")
+    print(tokenizer.vocab)
+    print()
+    print("Merged Vocab\n")
+    print(tokenizer.tokenize("I like monkeys."))
+
+
+if __name__ == "__main__":
+    example()
